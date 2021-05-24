@@ -54,8 +54,7 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-	} /*TODO How to add finalizer using //+kubebuilder ?? (tried adding to objectMeta but got yelled at by the compiler)*/
-
+	}
 	owner, repo := splitOwnerRepo(ghissue.Spec.Repo)
 	allRepoIssues, err := getListOfIssues(githubClient, ctx1, owner, repo, logger)
 	if err != nil {
@@ -110,14 +109,10 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		}
 	}
 	/*important! call the below 3 lines of code only ONCE in entire reconcile. Avoid redundant calls!*/
-	ghissue.Status.State = *issue.State
-	ghissue.Status.LastUpdateTimestamp = issue.UpdatedAt.String()
-	err = r.Status().Update(ctx, &ghissue)
-	if err != nil {
-		logger.Error(err, "((GithubIssueReconciler)r).Status().Update() failed ")
+	err = r.updateStatus(ctx, issue, &ghissue)
+	if err != nil{
 		return ctrl.Result{}, err
 	}
-
 	return ctrl.Result{}, nil //no error
 }
 
@@ -127,6 +122,17 @@ func (r *GithubIssueReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&g.GithubIssue{}).
 		Complete(r)
+}
+
+func (r *GithubIssueReconciler)  updateStatus(ctx context.Context, issue *github.Issue, ghissue *g.GithubIssue)  error{
+	ghissue.Status.State = *issue.State
+	ghissue.Status.LastUpdateTimestamp = issue.UpdatedAt.String()
+	err := r.Status().Update(ctx, ghissue)
+	if err != nil {
+		r.Log.Error(err, "((GithubIssueReconciler)r).Status().Update() failed ")
+		return err
+	}
+	return nil
 }
 
 func closeIssueOnGithub(githubClient *github.Client, ctx context.Context, owner, repo string, issue *github.Issue, ghissue *g.GithubIssue, logger logr.Logger) error {
@@ -226,8 +232,7 @@ func searchIssueByTitle(issues []*github.Issue, title string) (*github.Issue, er
 }
 
 func getGithubClient() (*github.Client, context.Context) {
-	//tkn := os.Getenv("TOKEN")
-	tkn := "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"
+	tkn := os.Getenv("TOKEN")
 	ctx1 := context.Background()
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: tkn},

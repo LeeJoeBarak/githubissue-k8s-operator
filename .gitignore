@@ -24,3 +24,5 @@ testbin/*
 *.swo
 *~
 /api/v1alpha1/secrets.go
+/.gitignore
+/test_logs/
