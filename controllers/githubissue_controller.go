@@ -108,7 +108,7 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			}
 		}
 	}
-	/*important! call the below 3 lines of code only ONCE in entire reconcile. Avoid redundant calls!*/
+
 	err = r.updateStatus(ctx, issue, &ghissue)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -220,7 +220,10 @@ func handleDeletionIfIssueFound(githubClient *github.Client, ctx1 context.Contex
 	return nil
 }
 
-/**** HELPERS ****/
+/*=====================================================================================
+======================================= HELPERS =======================================
+=======================================================================================*/
+
 func searchIssueByTitle(issues []*github.Issue, title string) (*github.Issue, error) {
 	for _, issue := range issues {
 		// i is the index where we are, title is the element from titles slice for where we are
@@ -262,7 +265,9 @@ func isDescriptionEqual(issue *github.Issue, ghissue *g.GithubIssue) bool {
 	return *issue.Body == ghissue.Spec.Desc
 }
 
-/**** UTILS ****/
+/*=====================================================================================
+======================================= UTILS =========================================
+=======================================================================================*/
 func getTitle(ghissue *g.GithubIssue) string {
 	return ghissue.Spec.Title
 }
