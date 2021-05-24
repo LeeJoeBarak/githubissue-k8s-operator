@@ -1,0 +1,127 @@
+HTTP/2 200 
+server: GitHub.com
+date: Wed, 05 May 2021 07:23:45 GMT
+content-type: application/json; charset=utf-8
+cache-control: public, max-age=60, s-maxage=60
+vary: Accept, Accept-Encoding, Accept, X-Requested-With
+etag: W/"69e4799d9a9e600593691127255ab48060891aac3669e7dbcdc947194af7133f"
+x-github-media-type: github.v3; format=json
+access-control-expose-headers: ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, Deprecation, Sunset
+access-control-allow-origin: *
+strict-transport-security: max-age=31536000; includeSubdomains; preload
+x-frame-options: deny
+x-content-type-options: nosniff
+x-xss-protection: 0
+referrer-policy: origin-when-cross-origin, strict-origin-when-cross-origin
+content-security-policy: default-src 'none'
+x-ratelimit-limit: 60
+x-ratelimit-remaining: 57
+x-ratelimit-reset: 1620202677
+x-ratelimit-resource: core
+x-ratelimit-used: 3
+accept-ranges: bytes
+content-length: 4628
+x-github-request-id: C220:60F7:113BDDA:118135F:60924800
+
+[
+  {
+    "url": "https://api.github.com/repos/LeeJoeBarak/githubissue-operator/issues/2",
+    "repository_url": "https://api.github.com/repos/LeeJoeBarak/githubissue-operator",
+    "labels_url": "https://api.github.com/repos/LeeJoeBarak/githubissue-operator/issues/2/labels{/name}",
+    "comments_url": "https://api.github.com/repos/LeeJoeBarak/githubissue-operator/issues/2/comments",
+    "events_url": "https://api.github.com/repos/LeeJoeBarak/githubissue-operator/issues/2/events",
+    "html_url": "https://github.com/LeeJoeBarak/githubissue-operator/issues/2",
+    "id": 876144582,
+    "node_id": "MDU6SXNzdWU4NzYxNDQ1ODI=",
+    "number": 2,
+    "title": "Test Issue #2",
+    "user": {
+      "login": "LeeJoeBarak",
+      "id": 58112850,
+      "node_id": "MDQ6VXNlcjU4MTEyODUw",
+      "avatar_url": "https://avatars.githubusercontent.com/u/58112850?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/LeeJoeBarak",
+      "html_url": "https://github.com/LeeJoeBarak",
+      "followers_url": "https://api.github.com/users/LeeJoeBarak/followers",
+      "following_url": "https://api.github.com/users/LeeJoeBarak/following{/other_user}",
+      "gists_url": "https://api.github.com/users/LeeJoeBarak/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/LeeJoeBarak/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/LeeJoeBarak/subscriptions",
+      "organizations_url": "https://api.github.com/users/LeeJoeBarak/orgs",
+      "repos_url": "https://api.github.com/users/LeeJoeBarak/repos",
+      "events_url": "https://api.github.com/users/LeeJoeBarak/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/LeeJoeBarak/received_events",
+      "type": "User",
+      "site_admin": false
+    },
+    "labels": [
+
+    ],
+    "state": "open",
+    "locked": false,
+    "assignee": null,
+    "assignees": [
+
+    ],
+    "milestone": null,
+    "comments": 0,
+    "created_at": "2021-05-05T07:22:34Z",
+    "updated_at": "2021-05-05T07:22:34Z",
+    "closed_at": null,
+    "author_association": "OWNER",
+    "active_lock_reason": null,
+    "body": "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut placerat orci nulla pellentesque dignissim enim sit amet venenatis. Donec pretium vulputate sapien nec sagittis. Eros donec ac odio tempor orci. ",
+    "performed_via_github_app": null
+  },
+  {
+    "url": "https://api.github.com/repos/LeeJoeBarak/githubissue-operator/issues/1",
+    "repository_url": "https://api.github.com/repos/LeeJoeBarak/githubissue-operator",
+    "labels_url": "https://api.github.com/repos/LeeJoeBarak/githubissue-operator/issues/1/labels{/name}",
+    "comments_url": "https://api.github.com/repos/LeeJoeBarak/githubissue-operator/issues/1/comments",
+    "events_url": "https://api.github.com/repos/LeeJoeBarak/githubissue-operator/issues/1/events",
+    "html_url": "https://github.com/LeeJoeBarak/githubissue-operator/issues/1",
+    "id": 876136185,
+    "node_id": "MDU6SXNzdWU4NzYxMzYxODU=",
+    "number": 1,
+    "title": "Test Issue #1",
+    "user": {
+      "login": "LeeJoeBarak",
+      "id": 58112850,
+      "node_id": "MDQ6VXNlcjU4MTEyODUw",
+      "avatar_url": "https://avatars.githubusercontent.com/u/58112850?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/LeeJoeBarak",
+      "html_url": "https://github.com/LeeJoeBarak",
+      "followers_url": "https://api.github.com/users/LeeJoeBarak/followers",
+      "following_url": "https://api.github.com/users/LeeJoeBarak/following{/other_user}",
+      "gists_url": "https://api.github.com/users/LeeJoeBarak/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/LeeJoeBarak/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/LeeJoeBarak/subscriptions",
+      "organizations_url": "https://api.github.com/users/LeeJoeBarak/orgs",
+      "repos_url": "https://api.github.com/users/LeeJoeBarak/repos",
+      "events_url": "https://api.github.com/users/LeeJoeBarak/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/LeeJoeBarak/received_events",
+      "type": "User",
+      "site_admin": false
+    },
+    "labels": [
+
+    ],
+    "state": "open",
+    "locked": false,
+    "assignee": null,
+    "assignees": [
+
+    ],
+    "milestone": null,
+    "comments": 0,
+    "created_at": "2021-05-05T07:11:46Z",
+    "updated_at": "2021-05-05T07:11:46Z",
+    "closed_at": null,
+    "author_association": "OWNER",
+    "active_lock_reason": null,
+    "body": "Whazzzz upppp",
+    "performed_via_github_app": null
+  }
+]

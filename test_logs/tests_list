@@ -1,0 +1,33 @@
+TESTS:
+
+1) Create "gh1" in cluster -> was the issue created in Github? (V)
+
+2) Observe reconcile behaviour for "gh1" -> is idempotent? (V)
+
+3) on Github, change the body of "issue 1" ("gh1" in cluster) -> issue's body (in Github) changed back to match the 'desc' of "gh1"? (V)
+
+4) in the cluster, 'k edit githubissue gh1' and change the desc -> issue's body (in Github) changed back to match the 'desc' of "gh1"? (V)
+
+5) Delete "gh1" from cluster ->  is the issue closed in Github? (V)
+
+6) Try to Delete an issue that exists on cluster but NEVER existed in Github //todo can this happen if I 'k create gh1' then 'k delete gh1' really really fast?)
+
+7)
+
+8)
+
+9)
+
+BUGS:
+
+1) Bug desc:
+-->
+
+2) Bug desc:
+-->
+
+3) Bug desc:
+-->
+
+
+TOKEN="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"
