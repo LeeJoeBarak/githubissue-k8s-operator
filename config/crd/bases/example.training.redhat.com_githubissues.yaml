@@ -1,0 +1,82 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.4.1
+  creationTimestamp: null
+  name: githubissues.example.training.redhat.com
+spec:
+  group: example.training.redhat.com
+  names:
+    kind: GithubIssue
+    listKind: GithubIssueList
+    plural: githubissues
+    singular: githubissue
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: GithubIssue is the Schema for the githubissues API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+            properties:
+              finalizers:
+                type: array
+                items:
+                  type: string
+                  pattern: "training.redhat.com/finalizer"
+          spec:
+            description: GithubIssueSpec defines the desired state of GithubIssue
+            properties:
+              description:
+                description: description of the github issue
+                type: string
+              repo:
+                pattern: ^[a-zA-Z0-9]+[\-]?[a-zA-Z0-9]+\/[a-zA-Z0-9\.\-_]+$
+                type: string
+              title:
+                description: 'INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
+                  Important: Run "make" to regenerate code after modifying this file
+                  title of the github issue'
+                type: string
+            required:
+            - description
+            - repo
+            - title
+            type: object
+          status:
+            description: GithubIssueStatus defines the observed state of GithubIssue
+            properties:
+              lastUpdateTimestamp:
+                type: string
+              state:
+                description: 'INSERT ADDITIONAL STATUS FIELD - define observed state
+                  of cluster Important: Run "make" to regenerate code after modifying
+                  this file'
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

@@ -1,0 +1,12 @@
+apiVersion: example.training.redhat.com/v1alpha1
+kind: GithubIssue
+metadata:
+  name: ghs2
+spec:
+  # Add fields here
+  title: "issue (test_auto_finalizer)"
+  repo: "LeeJoeBarak/githubissue-operator"
+  description: "Test issue description (test_auto_finalizer)"
+status:
+  state: ""
+  lastUpdateTimestamp: ""

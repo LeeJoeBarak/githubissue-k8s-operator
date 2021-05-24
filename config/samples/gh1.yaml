@@ -1,0 +1,12 @@
+apiVersion: example.training.redhat.com/v1alpha1
+kind: GithubIssue
+metadata:
+  name: gh1
+spec:
+  # Add fields here
+  title: "issue 1 (test_create)"
+  repo: "LeeJoeBarak/githubissue-operator"
+  description: "Test issue 1 description"
+status:
+  state: ""
+  lastUpdateTimestamp: ""

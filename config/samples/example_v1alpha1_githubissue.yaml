@@ -1,0 +1,18 @@
+# you can think of this manifest as the specs(fields/attributes)
+# you (the githubissue developer) "force" the person who'll write
+# the manifest in the "real world" to provide to the controller
+# YOU CAN ADD OR REMOVE THESE REQUIRED SPECS IN THE GitHubIssueSpec struct
+
+# THIS IS A K8S GitHubIssue (NOT A "real world" GitHub Issue)
+apiVersion: example.training.redhat.com/v1alpha1
+kind: GithubIssue
+metadata:
+  name: githubissue-sample
+spec:
+  # Add fields here
+  title: "issue"
+  repo: "LeeJoeBarak/githubissue-operator"
+  description: "this is my first issue"
+status:
+  state: ""
+  lastUpdateTimestamp: ""
