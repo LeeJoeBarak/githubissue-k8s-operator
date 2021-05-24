@@ -110,7 +110,7 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 	/*important! call the below 3 lines of code only ONCE in entire reconcile. Avoid redundant calls!*/
 	err = r.updateStatus(ctx, issue, &ghissue)
-	if err != nil{
+	if err != nil {
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil //no error
@@ -124,7 +124,7 @@ func (r *GithubIssueReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *GithubIssueReconciler)  updateStatus(ctx context.Context, issue *github.Issue, ghissue *g.GithubIssue)  error{
+func (r *GithubIssueReconciler) updateStatus(ctx context.Context, issue *github.Issue, ghissue *g.GithubIssue) error {
 	ghissue.Status.State = *issue.State
 	ghissue.Status.LastUpdateTimestamp = issue.UpdatedAt.String()
 	err := r.Status().Update(ctx, ghissue)
