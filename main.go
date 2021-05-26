@@ -25,15 +25,15 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	examplev1alpha1 "github.com/leejoebarak/githubissue-operator/api/v1alpha1"
+	"github.com/leejoebarak/githubissue-operator/controllers"
+	cl "github.com/leejoebarak/githubissue-operator/pkg/github"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-
-	examplev1alpha1 "github.com/leejoebarak/githubissue-operator/api/v1alpha1"
-	"github.com/leejoebarak/githubissue-operator/controllers"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -66,7 +66,7 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 	timeDuration := time.Duration(time.Second * 60)
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{ //todo handle resync
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
 		MetricsBindAddress:     metricsAddr,
 		Port:                   9443,
@@ -81,9 +81,10 @@ func main() {
 	}
 
 	if err = (&controllers.GithubIssueReconciler{
-		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("GithubIssue"),
-		Scheme: mgr.GetScheme(),
+		Client:       mgr.GetClient(),
+		Log:          ctrl.Log.WithName("controllers").WithName("GithubIssue"),
+		Scheme:       mgr.GetScheme(),
+		GithubClient: cl.NewClientImpl(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "GithubIssue")
 		os.Exit(1)

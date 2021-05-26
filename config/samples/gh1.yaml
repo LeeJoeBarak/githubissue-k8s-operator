@@ -5,7 +5,7 @@ metadata:
 spec:
   # Add fields here
   title: "issue 1 (test_create)"
-  repo: "LeeJoeBarak/githubissue-operator"
+  repo: "LeeJoeBarak/githubissue-k8s-operator"
   description: "Test issue 1 description"
 status:
   state: ""

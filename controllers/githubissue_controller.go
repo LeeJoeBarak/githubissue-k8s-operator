@@ -2,11 +2,10 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 	"github.com/go-logr/logr"
-	"github.com/google/go-github/v35/github"
 	g "github.com/leejoebarak/githubissue-operator/api/v1alpha1"
-	"golang.org/x/oauth2"
+	githubinterface "github.com/leejoebarak/githubissue-operator/pkg/github"
+	pkgerrors "github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"log"
@@ -15,9 +14,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil" //finalizer related
 	"strings"
-
-	"io/ioutil"
-	"net/http"
 	// "github.com/google/go-github/github" // with go modules disabled
 )
 
@@ -26,6 +22,7 @@ type GithubIssueReconciler struct {
 	client.Client //type embedding
 	Log           logr.Logger
 	Scheme        *runtime.Scheme
+	GithubClient  githubinterface.Client
 }
 
 const finalizerName = "training.redhat.com/finalizer" // domain/name-of-custom-finalizer
@@ -33,8 +30,6 @@ const finalizerName = "training.redhat.com/finalizer" // domain/name-of-custom-f
 func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := r.Log.WithValues("githubissue_name", req.NamespacedName)
 	logger.Info("**************START LOGIC**************")
-	/* AUTHENTICATION */
-	githubClient, ctx1 := getGithubClient()
 
 	/* Get object from k8s cluster */
 	ghissue := g.GithubIssue{}
@@ -47,23 +42,23 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		logger.Error(err, "Error reading the object -> Requeue the request.")
 		return ctrl.Result{}, err
 	}
+
 	// Add finalizer for this CR
-	if !controllerutil.ContainsFinalizer(&ghissue, finalizerName) {
-		controllerutil.AddFinalizer(&ghissue, finalizerName)
-		err = r.Update(ctx, &ghissue)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
+	err = r.AddFinalizer(&ghissue, ctx)
+	if err != nil {
+		logger.Error(err, "")
 	}
+
 	owner, repo := splitOwnerRepo(ghissue.Spec.Repo)
-	allRepoIssues, err := getListOfIssues(githubClient, ctx1, owner, repo, logger)
+	allRepoIssues, err := r.getListOfIssues(owner, repo) //[V]
 	if err != nil {
 		logger.Error(err, "While trying to get repo's list of issues")
 		return ctrl.Result{}, err
 	}
 
 	/* check if issue exists in github repo */
-	issue, err := searchIssueByTitle(allRepoIssues, ghissue.Spec.Title)
+	issue, err := r.GithubClient.SearchIssueByTitle(allRepoIssues, ghissue.Spec.Title) //[V]
+
 	if err != nil {
 		/*issue not found*/
 		if !ghissue.ObjectMeta.DeletionTimestamp.IsZero() {
@@ -77,7 +72,7 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			return ctrl.Result{}, nil
 		}
 		/* k8s object is not being deleted */
-		issue, err = createIssueOnGithub(githubClient, ctx1, owner, repo, &ghissue, logger)
+		issue, err = r.createIssueOnGithub(owner, repo, &ghissue) //[V]
 		if err != nil {
 			logger.Error(err, "While trying to create issue on Github")
 			return ctrl.Result{}, err
@@ -87,7 +82,7 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		/*issue was found*/
 		if !ghissue.ObjectMeta.DeletionTimestamp.IsZero() {
 			/* DeletionTimestamp Not Zero -> delete */
-			err = handleDeletionIfIssueFound(githubClient, ctx1, owner, repo, issue, &ghissue, logger)
+			err = r.handleDeletionIfIssueFound(owner, repo, &ghissue, issue) //[V]
 			if err != nil {
 				logger.Error(err, "While trying to delete issue on Github")
 				return ctrl.Result{}, err
@@ -101,7 +96,7 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		}
 		/* k8s object is not being deleted */
 		if !isDescriptionEqual(issue, &ghissue) {
-			_, err = updateDescriptionOnGithub(githubClient, ctx1, owner, repo, *issue.Number, &ghissue, logger)
+			_, err = r.updateDescriptionOnGithub(owner, repo, issue.Number, &ghissue) //[V]
 			if err != nil {
 				logger.Error(err, "While trying to update issue on Github")
 				return ctrl.Result{}, err
@@ -109,7 +104,7 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		}
 	}
 
-	err = r.updateStatus(ctx, issue, &ghissue)
+	err = r.updateStatus(ctx, issue, &ghissue) //[V]
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -124,9 +119,25 @@ func (r *GithubIssueReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *GithubIssueReconciler) updateStatus(ctx context.Context, issue *github.Issue, ghissue *g.GithubIssue) error {
-	ghissue.Status.State = *issue.State
-	ghissue.Status.LastUpdateTimestamp = issue.UpdatedAt.String()
+func (r *GithubIssueReconciler) createIssueOnGithub(owner, repo string, ghissue *g.GithubIssue) (*githubinterface.IssueData, error) {
+	issue, err := r.GithubClient.Create(owner, repo, ghissue)
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, "couldn't create new issue on Github")
+	}
+	return issue, nil
+}
+
+func (r *GithubIssueReconciler) updateDescriptionOnGithub(owner, repo string, number int, ghissue *g.GithubIssue) (*githubinterface.IssueData, error) {
+	issue, err := r.GithubClient.Update(owner, repo, number, ghissue)
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, "couldn't update issue on Github")
+	}
+	return issue, nil
+}
+
+func (r *GithubIssueReconciler) updateStatus(ctx context.Context, issue *githubinterface.IssueData, ghissue *g.GithubIssue) error {
+	ghissue.Status.State = issue.State
+	ghissue.Status.LastUpdateTimestamp = issue.UpdatedAt
 	err := r.Status().Update(ctx, ghissue)
 	if err != nil {
 		r.Log.Error(err, "((GithubIssueReconciler)r).Status().Update() failed ")
@@ -135,115 +146,54 @@ func (r *GithubIssueReconciler) updateStatus(ctx context.Context, issue *github.
 	return nil
 }
 
-func closeIssueOnGithub(githubClient *github.Client, ctx context.Context, owner, repo string, issue *github.Issue, ghissue *g.GithubIssue, logger logr.Logger) error {
-	/*
-	* delete any external resources associated with the ghissue
-	* Ensure that delete implementation is idempotent and safe to invoke multiple times for same object.*/
-	if issue == nil {
-		return fmt.Errorf("closeIssueOnGithub() was passed nil issue param (you can't close an issue that never existed)")
-	}
-	issueReq := &github.IssueRequest{
-		Title: github.String(ghissue.Spec.Title),
-		Body:  github.String(ghissue.Spec.Desc),
-		State: github.String("closed"),
-	}
-	issue, resp, err := githubClient.Issues.Edit(ctx, owner, repo, *issue.Number, issueReq)
-	if err != nil || (resp != nil && resp.StatusCode != http.StatusOK) {
-		body, _ := ioutil.ReadAll(resp.Body)
-		logger = logger.WithName("closeIssueOnGithub()")
-		logger.Error(err, "Deleting github issue failed", "Github api response code is", resp.StatusCode, "The response body is", string(body)) //print body as it may contain hints in case of errors
-		return err
-	}
-	return nil
-}
-
-func getListOfIssues(githubClient *github.Client, ctx context.Context, owner, repo string, logger logr.Logger) ([]*github.Issue, error) {
-	//opts := githubClient.Issues.IssueListByRepoOptions
-	opts := github.IssueListByRepoOptions{
-		State: "all",
-	}
-	issues, resp, err := githubClient.Issues.ListByRepo(ctx, owner, repo, &opts)
-	if err != nil || (resp != nil && resp.StatusCode != http.StatusOK) {
-		//log body as it may contain hints in case of errors
-		body, _ := ioutil.ReadAll(resp.Body)
-		logger = logger.WithName("getListOfIssues()")
-		logger.Error(err, "Reading the list of issues from github repo failed", "Github api response code is", resp.StatusCode, "The response body is", string(body))
-		return nil, err
+func (r *GithubIssueReconciler) getListOfIssues(owner, repo string) ([]*githubinterface.IssueData, error) {
+	issues, err := r.GithubClient.ListIssuesByRepo(owner, repo)
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, "couldn't retrieve list of issues from Github")
 	}
 	return issues, nil
 }
 
-func createIssueOnGithub(githubClient *github.Client, ctx context.Context, owner, repo string, githubIssueObj *g.GithubIssue, logger logr.Logger) (*github.Issue, error) {
-	issueReq := &github.IssueRequest{
-		Title: github.String(githubIssueObj.Spec.Title),
-		Body:  github.String(githubIssueObj.Spec.Desc),
-		State: github.String("open"),
+func (r *GithubIssueReconciler) handleDeletionIfIssueFound(owner, repo string, ghissue *g.GithubIssue, issue *githubinterface.IssueData) error {
+	if issue == nil {
+		return pkgerrors.New("handleDeletionIfIssueFound(..) received a nil 'issue' argument (you can't close an issue that never existed) ")
 	}
-	issue, resp, err := githubClient.Issues.Create(ctx, owner, repo, issueReq)
-	if err != nil || (resp != nil && resp.StatusCode != http.StatusCreated) {
-		body, _ := ioutil.ReadAll(resp.Body)
-		logger = logger.WithName("createIssueOnGithub()")
-		logger.Error(err, "Creation of github issue failed", "Github api response code is", resp.StatusCode, "The response body is", string(body)) //print body as it may contain hints in case of errors
-		return nil, err
-	}
-	return issue, nil
-}
 
-/*
-update the real world Description (aka Body) */
-func updateDescriptionOnGithub(githubClient *github.Client, ctx context.Context, owner, repo string, number int, githubIssueObj *g.GithubIssue, logger logr.Logger) (*github.Issue, error) {
-	issueReq := &github.IssueRequest{
-		Title: github.String(githubIssueObj.Spec.Title),
-		Body:  github.String(githubIssueObj.Spec.Desc),
-	}
-	issue, resp, err := githubClient.Issues.Edit(ctx, owner, repo, number, issueReq)
-	if err != nil || (resp != nil && resp.StatusCode != http.StatusOK) {
-		body, _ := ioutil.ReadAll(resp.Body)
-		logger = logger.WithName("updateDescriptionOnGithub()")
-		logger.Error(err, "Updating github issue failed", "Github api response code is", resp.StatusCode, "The response body is", string(body)) //print body as it may contain hints in case of errors
-		return nil, err
-	}
-	return issue, nil
-}
-
-func handleDeletionIfIssueFound(githubClient *github.Client, ctx1 context.Context, owner, repo string, issue *github.Issue, ghissue *g.GithubIssue, logger logr.Logger) error {
 	if stateClosed(issue) { // issue already closed on github
 		controllerutil.RemoveFinalizer(ghissue, finalizerName)
 	} else {
-		err := closeIssueOnGithub(githubClient, ctx1, owner, repo, issue, ghissue, logger) //handle external dependency
+		err := r.GithubClient.CloseIssue(owner, repo, ghissue, issue)
 		if err != nil {
-			logger.Error(err, "While trying to close issue on Github")
-			return err // if fail to delete the external dependency, return with error so that it can be retried
+			return pkgerrors.Wrap(err, "couldn't close issue on Github")
 		}
 		controllerutil.RemoveFinalizer(ghissue, finalizerName) // successful deletion of external resources -> remove our finalizer from the list
 	}
 	return nil
 }
 
+func (r *GithubIssueReconciler) AddFinalizer(ghissue *g.GithubIssue, ctx context.Context) error {
+	// Add finalizer for this CR
+	if !controllerutil.ContainsFinalizer(ghissue, finalizerName) {
+		controllerutil.AddFinalizer(ghissue, finalizerName)
+		err := r.Update(ctx, ghissue)
+		if err != nil {
+			return err
+		}
+	}
+
+}
+
+func stateClosed(issue *githubinterface.IssueData) bool {
+	return issue != nil && issue.State == "closed"
+}
+
+func isDescriptionEqual(issue *githubinterface.IssueData, ghissue *g.GithubIssue) bool {
+	return issue != nil && issue.Body == ghissue.Spec.Desc
+}
+
 /*=====================================================================================
 ======================================= HELPERS =======================================
 =======================================================================================*/
-
-func searchIssueByTitle(issues []*github.Issue, title string) (*github.Issue, error) {
-	for _, issue := range issues {
-		// i is the index where we are, title is the element from titles slice for where we are
-		if title == *issue.Title {
-			return issue, nil
-		}
-	}
-	return nil, fmt.Errorf("issue %s not found", title)
-}
-
-func getGithubClient() (*github.Client, context.Context) {
-	tkn := os.Getenv("TOKEN")
-	ctx1 := context.Background()
-	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: tkn},
-	)
-	tc := oauth2.NewClient(ctx1, ts)
-	githubClient := github.NewClient(tc)
-	return githubClient, ctx1
-}
 
 func log404(logger logr.Logger) {
 	logger.Info("Returned status is 404 -> Request object Not Found (could have been deleted after reconcile request)")
@@ -255,14 +205,6 @@ func splitOwnerRepo(githubIssueRepo string) (owner string, repo string) {
 	owner = split[0]
 	repo = split[1]
 	return owner, repo
-}
-
-func stateClosed(issue *github.Issue) bool {
-	return issue != nil && *issue.State == "closed"
-}
-
-func isDescriptionEqual(issue *github.Issue, ghissue *g.GithubIssue) bool {
-	return *issue.Body == ghissue.Spec.Desc
 }
 
 /*=====================================================================================

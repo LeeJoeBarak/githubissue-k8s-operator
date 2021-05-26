@@ -5,7 +5,7 @@ metadata:
 spec:
   # Add fields here
   title: "issue (test_auto_finalizer)"
-  repo: "LeeJoeBarak/githubissue-operator"
+  repo: "LeeJoeBarak/githubissue-k8s-operator"
   description: "Test issue description (test_auto_finalizer)"
 status:
   state: ""
