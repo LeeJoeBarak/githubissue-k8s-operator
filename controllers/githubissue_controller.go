@@ -3,9 +3,9 @@ package controllers
 import (
 	"context"
 	"github.com/go-logr/logr"
-	g "github.com/leejoebarak/githubissue-operator/api/v1alpha1"
+	"github.com/leejoebarak/githubissue-operator/api/v1alpha1"
 	githubinterface "github.com/leejoebarak/githubissue-operator/pkg/github"
-	pkgerrors "github.com/pkg/errors"
+	pkgerr "github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"log"
@@ -29,10 +29,9 @@ const finalizerName = "training.redhat.com/finalizer" // domain/name-of-custom-f
 
 func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := r.Log.WithValues("githubissue_name", req.NamespacedName)
-	logger.Info("**************START LOGIC**************")
+	logger.Info("************** START LOGIC **************")
 
-	/* Get object from k8s cluster */
-	ghissue := g.GithubIssue{}
+	ghissue := v1alpha1.GithubIssue{}
 	err := r.Client.Get(ctx, req.NamespacedName, &ghissue) //get the githubIssue *k8s* object VALUES, if exists (from k8s api server)
 	if err != nil {
 		if errors.IsNotFound(err) { //err status is 404 -> return with nil error (don't requeue)
@@ -43,43 +42,38 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, err
 	}
 
-	// Add finalizer for this CR
-	err = r.AddFinalizer(&ghissue, ctx)
+	err = r.AddFinalizer(&ghissue, ctx) // Add finalizer for this CR
 	if err != nil {
 		logger.Error(err, "")
 	}
 
-	owner, repo := splitOwnerRepo(ghissue.Spec.Repo)
+	owner, repo := splitOwnerRepo(ghissue.Spec.Repo)                   // check if issue already exists on github
 	allRepoIssues, err := r.GithubClient.ListIssuesByRepo(owner, repo) //[V]
 	if err != nil {
 		logger.Error(err, "couldn't retrieve list of issues from Github")
 		return ctrl.Result{}, err
 	}
 
-	/* check if issue exists in github repo */
 	issue, err := r.GithubClient.SearchIssueByTitle(allRepoIssues, ghissue.Spec.Title) //[V]
 	if err != nil {
-		/*issue not found*/
-		if !ghissue.ObjectMeta.DeletionTimestamp.IsZero() {
-			/* DeletionTimestamp Not Zero && No issue on Github */
+		// issue not found
+		if !ghissue.ObjectMeta.DeletionTimestamp.IsZero() { //DeletionTimestamp Not Zero && No issue on Github
 			controllerutil.RemoveFinalizer(&ghissue, finalizerName)
-			err = r.Update(ctx, &ghissue) // Update the cluster
+			err = r.Update(ctx, &ghissue)
 			if err != nil {
 				logger.Error(err, "r.Update() failed")
 				return ctrl.Result{}, err
 			}
 			return ctrl.Result{}, nil
 		}
-		/* k8s object is not being deleted -> create */
-		issue, err = r.GithubClient.Create(owner, repo, &ghissue) //[V]
+		issue, err = r.GithubClient.Create(owner, repo, &ghissue) // k8s object is not being deleted
 		if err != nil {
 			logger.Error(err, "couldn't create new issue on Github")
 			return ctrl.Result{}, err
 		}
 	} else {
-		/*issue was found*/
-		if !ghissue.ObjectMeta.DeletionTimestamp.IsZero() {
-			/* DeletionTimestamp Not Zero -> delete */
+		// issue was found
+		if !ghissue.ObjectMeta.DeletionTimestamp.IsZero() { // DeletionTimestamp Not Zero
 			err = r.handleDeletionIfIssueFound(owner, repo, &ghissue, issue) //[V]
 			if err != nil {
 				logger.Error(err, "While trying to delete issue on Github")
@@ -92,8 +86,7 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			}
 			return ctrl.Result{}, nil
 		}
-		/* k8s object is not being deleted */
-		if !isDescriptionEqual(issue, &ghissue) {
+		if !isDescriptionEqual(issue, &ghissue) { // k8s object is not being deleted
 			_, err = r.GithubClient.Update(owner, repo, issue.Number, &ghissue) //[V]
 			if err != nil {
 				logger.Error(err, "couldn't update issue on Github")
@@ -101,7 +94,6 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			}
 		}
 	}
-
 	err = r.updateStatus(ctx, issue, &ghissue) //[V]
 	if err != nil {
 		return ctrl.Result{}, err
@@ -113,11 +105,11 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 func (r *GithubIssueReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	/* this method tells the controller "you are tracking resources of type GitHubIssue" */
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&g.GithubIssue{}).
+		For(&v1alpha1.GithubIssue{}).
 		Complete(r)
 }
 
-func (r *GithubIssueReconciler) AddFinalizer(ghissue *g.GithubIssue, ctx context.Context) error {
+func (r *GithubIssueReconciler) AddFinalizer(ghissue *v1alpha1.GithubIssue, ctx context.Context) error {
 	// Add finalizer for this CR
 	if !controllerutil.ContainsFinalizer(ghissue, finalizerName) {
 		controllerutil.AddFinalizer(ghissue, finalizerName)
@@ -129,9 +121,9 @@ func (r *GithubIssueReconciler) AddFinalizer(ghissue *g.GithubIssue, ctx context
 	return nil
 }
 
-func (r *GithubIssueReconciler) handleDeletionIfIssueFound(owner, repo string, ghissue *g.GithubIssue, issue *githubinterface.IssueData) error {
+func (r *GithubIssueReconciler) handleDeletionIfIssueFound(owner, repo string, ghissue *v1alpha1.GithubIssue, issue *githubinterface.IssueData) error {
 	if issue == nil {
-		return pkgerrors.New("handleDeletionIfIssueFound(..) received a nil 'issue' argument (you can't close an issue that never existed) ")
+		return pkgerr.New("handleDeletionIfIssueFound(..) received a nil 'issue' argument (you can't close an issue that never existed) ")
 	}
 
 	if stateClosed(issue) { // issue already closed on github
@@ -139,7 +131,7 @@ func (r *GithubIssueReconciler) handleDeletionIfIssueFound(owner, repo string, g
 	} else {
 		err := r.GithubClient.CloseIssue(owner, repo, ghissue, issue)
 		if err != nil {
-			return pkgerrors.Wrap(err, "couldn't close issue on Github")
+			return pkgerr.Wrap(err, "couldn't close issue on Github")
 		}
 		controllerutil.RemoveFinalizer(ghissue, finalizerName) // successful deletion of external resources -> remove our finalizer from the list
 	}
@@ -150,7 +142,7 @@ func stateClosed(issue *githubinterface.IssueData) bool {
 	return issue != nil && issue.State == "closed"
 }
 
-func (r *GithubIssueReconciler) updateStatus(ctx context.Context, issue *githubinterface.IssueData, ghissue *g.GithubIssue) error {
+func (r *GithubIssueReconciler) updateStatus(ctx context.Context, issue *githubinterface.IssueData, ghissue *v1alpha1.GithubIssue) error {
 	ghissue.Status.State = issue.State
 	ghissue.Status.LastUpdateTimestamp = issue.UpdatedAt
 	err := r.Status().Update(ctx, ghissue)
@@ -161,16 +153,8 @@ func (r *GithubIssueReconciler) updateStatus(ctx context.Context, issue *githubi
 	return nil
 }
 
-func isDescriptionEqual(issue *githubinterface.IssueData, ghissue *g.GithubIssue) bool {
+func isDescriptionEqual(issue *githubinterface.IssueData, ghissue *v1alpha1.GithubIssue) bool {
 	return issue != nil && issue.Body == ghissue.Spec.Desc
-}
-
-/*=====================================================================================
-======================================= HELPERS =======================================
-=======================================================================================*/
-
-func log404(logger logr.Logger) {
-	logger.Info("Returned status is 404 -> Request object Not Found (could have been deleted after reconcile request)")
 }
 
 func splitOwnerRepo(githubIssueRepo string) (owner string, repo string) {
@@ -184,19 +168,19 @@ func splitOwnerRepo(githubIssueRepo string) (owner string, repo string) {
 /*=====================================================================================
 ======================================= UTILS =========================================
 =======================================================================================*/
-func getTitle(ghissue *g.GithubIssue) string {
+func getTitle(ghissue *v1alpha1.GithubIssue) string {
 	return ghissue.Spec.Title
 }
-func getOwnerRepo(ghissue *g.GithubIssue) string {
+func getOwnerRepo(ghissue *v1alpha1.GithubIssue) string {
 	return ghissue.Spec.Repo
 }
-func getDesc(ghissue *g.GithubIssue) string {
+func getDesc(ghissue *v1alpha1.GithubIssue) string {
 	return ghissue.Spec.Desc
 }
-func getState(ghissue *g.GithubIssue) string {
+func getState(ghissue *v1alpha1.GithubIssue) string {
 	return ghissue.Status.State
 }
-func getupdateAt(ghissue *g.GithubIssue) string {
+func getupdateAt(ghissue *v1alpha1.GithubIssue) string {
 	return ghissue.Status.LastUpdateTimestamp
 }
 
