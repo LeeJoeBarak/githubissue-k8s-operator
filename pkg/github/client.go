@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/go-logr/logr"
 	"github.com/google/go-github/v35/github"
-	g "github.com/leejoebarak/githubissue-operator/api/v1alpha1"
+	"github.com/leejoebarak/githubissue-operator/api/v1alpha1"
 	"golang.org/x/oauth2"
 	"net/http"
 	"os"
@@ -21,12 +21,14 @@ type IssueData struct {
 }
 
 type Client interface {
-	Create(owner, repo string, ghissue *g.GithubIssue) (*IssueData, error)
-	Update(owner, repo string, number int, ghissue *g.GithubIssue) (*IssueData, error)
+	Create(owner, repo string, ghissue *v1alpha1.GithubIssue) (*IssueData, error)
+	Update(owner, repo string, number int, ghissue *v1alpha1.GithubIssue) (*IssueData, error)
 	ListIssuesByRepo(owner, repo string) ([]*IssueData, error)
-	CloseIssue(owner, repo string, ghissue *g.GithubIssue, issue *IssueData) error
+	CloseIssue(owner, repo string, ghissue *v1alpha1.GithubIssue, issue *IssueData) error
 	SearchIssueByTitle(issues []*IssueData, title string) (*IssueData, error)
 }
+
+/*----------------- IMPLEMENTATION -----------------------*/
 
 type ClientImpl struct {
 	Log            logr.Logger
@@ -44,7 +46,7 @@ func (c ClientImpl) SearchIssueByTitle(issues []*IssueData, title string) (*Issu
 	return nil, fmt.Errorf("issue %s not found", title)
 }
 
-func (c ClientImpl) CloseIssue(owner, repo string, ghissue *g.GithubIssue, issue *IssueData) error {
+func (c ClientImpl) CloseIssue(owner, repo string, ghissue *v1alpha1.GithubIssue, issue *IssueData) error {
 	/*
 	* delete any external resources associated with the ghissue
 	* Ensure that delete implementation is idempotent and safe to invoke multiple times for same object.*/
@@ -91,14 +93,14 @@ func createListOfIssues(issues []*github.Issue) []*IssueData {
 	return issueList
 }
 
-func (c ClientImpl) Update(owner string, repo string, number int, ghissue *g.GithubIssue) (*IssueData, error) {
+func (c ClientImpl) Update(owner string, repo string, number int, ghissue *v1alpha1.GithubIssue) (*IssueData, error) {
 	issueReq := &github.IssueRequest{
 		Title: github.String(ghissue.Spec.Title),
 		Body:  github.String(ghissue.Spec.Desc),
 	}
 	goGithubIssue, resp, err := c.GoGithubClient.Issues.Edit(c.ctx, owner, repo, number, issueReq)
 	if err != nil || (resp != nil && resp.StatusCode != http.StatusOK) {
-		c.Log.WithName("Update()").Error(err, "Updating github issue failed")
+		c.Log.WithName("Update()").Error(err, "Updating github issue on Github failed")
 		return nil, err
 	}
 	issue := &IssueData{
@@ -111,7 +113,7 @@ func (c ClientImpl) Update(owner string, repo string, number int, ghissue *g.Git
 	return issue, nil
 }
 
-func (c ClientImpl) Create(owner string, repo string, ghissue *g.GithubIssue) (*IssueData, error) {
+func (c ClientImpl) Create(owner string, repo string, ghissue *v1alpha1.GithubIssue) (*IssueData, error) {
 	issueReq := &github.IssueRequest{
 		Title: github.String(ghissue.Spec.Title),
 		Body:  github.String(ghissue.Spec.Desc),
@@ -119,7 +121,7 @@ func (c ClientImpl) Create(owner string, repo string, ghissue *g.GithubIssue) (*
 	}
 	goGithubIssue, resp, err := c.GoGithubClient.Issues.Create(c.ctx, owner, repo, issueReq)
 	if err != nil || (resp != nil && resp.StatusCode != http.StatusCreated) {
-		c.Log.WithName("Create()").Error(err, "Creation of github goGithubIssue failed")
+		c.Log.WithName("Create()").Error(err, "Creation of github issue on Github  failed")
 		return nil, err
 	}
 	issue := &IssueData{

@@ -14,9 +14,14 @@ import (
 	"testing"
 )
 
-func TestMemcachedControllerDeploymentCreate(t *testing.T) {
+func TestGithubIssueControllerDeploymentCreate(t *testing.T) {
 
-	// A Memcached object with metadata and spec.
+	// Create array of tester GithubIssue objects with metadata and spec & save to 'objs'
+	// Register operator types with the runtime scheme. - not working, maybe redundant?
+	// Create a fake client to mock API calls.
+	// Create a Reconciler object with the scheme and fake k8s client + fake Github client.
+	// Create Array of Mock requests to simulate Reconcile() being called on an event for a
+	// watched resource .
 	testGI := v1alpha1.GithubIssue{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "ghTest",
@@ -39,14 +44,13 @@ func TestMemcachedControllerDeploymentCreate(t *testing.T) {
 	// Create a fake client to mock API calls.
 	cl := fake.NewClientBuilder().WithRuntimeObjects(objs...).Build()
 
-	// Create a ReconcileMemcached object with the scheme and fake client.
+	// Create a Reconciler object with the scheme and fake client.
 	r := &GithubIssueReconciler{
 		Client:       cl,
 		Log:          ctrl.Log.WithName("controllers").WithName("GithubIssue"),
 		Scheme:       scheme.Scheme,
 		GithubClient: fakegithub.NewFakeClient(),
 	}
-	//&ReconcileMemcached{client: cl, scheme: s}
 
 	// Mock request to simulate Reconcile() being called on an event for a
 	// watched resource .
