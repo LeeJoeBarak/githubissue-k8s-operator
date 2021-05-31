@@ -36,7 +36,7 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	err := r.Client.Get(ctx, req.NamespacedName, &ghissue) //get the githubIssue *k8s* object VALUES, if exists (from k8s api server)
 	if err != nil {
 		if errors.IsNotFound(err) { //err status is 404 -> return with nil error (don't requeue)
-			log404(logger)
+			logger.Info("Returned status is 404 -> Request object Not Found (could have been deleted after reconcile request)")
 			return ctrl.Result{}, nil
 		}
 		logger.Error(err, "Error reading the object -> Requeue the request.")
@@ -50,15 +50,14 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 
 	owner, repo := splitOwnerRepo(ghissue.Spec.Repo)
-	allRepoIssues, err := r.getListOfIssues(owner, repo) //[V]
+	allRepoIssues, err := r.GithubClient.ListIssuesByRepo(owner, repo) //[V]
 	if err != nil {
-		logger.Error(err, "While trying to get repo's list of issues")
+		logger.Error(err, "couldn't retrieve list of issues from Github")
 		return ctrl.Result{}, err
 	}
 
 	/* check if issue exists in github repo */
 	issue, err := r.GithubClient.SearchIssueByTitle(allRepoIssues, ghissue.Spec.Title) //[V]
-
 	if err != nil {
 		/*issue not found*/
 		if !ghissue.ObjectMeta.DeletionTimestamp.IsZero() {
@@ -71,13 +70,12 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			}
 			return ctrl.Result{}, nil
 		}
-		/* k8s object is not being deleted */
-		issue, err = r.createIssueOnGithub(owner, repo, &ghissue) //[V]
+		/* k8s object is not being deleted -> create */
+		issue, err = r.GithubClient.Create(owner, repo, &ghissue) //[V]
 		if err != nil {
-			logger.Error(err, "While trying to create issue on Github")
+			logger.Error(err, "couldn't create new issue on Github")
 			return ctrl.Result{}, err
 		}
-		/*************************************************************************************************/
 	} else {
 		/*issue was found*/
 		if !ghissue.ObjectMeta.DeletionTimestamp.IsZero() {
@@ -96,9 +94,9 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		}
 		/* k8s object is not being deleted */
 		if !isDescriptionEqual(issue, &ghissue) {
-			_, err = r.updateDescriptionOnGithub(owner, repo, issue.Number, &ghissue) //[V]
+			_, err = r.GithubClient.Update(owner, repo, issue.Number, &ghissue) //[V]
 			if err != nil {
-				logger.Error(err, "While trying to update issue on Github")
+				logger.Error(err, "couldn't update issue on Github")
 				return ctrl.Result{}, err
 			}
 		}
@@ -119,39 +117,16 @@ func (r *GithubIssueReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *GithubIssueReconciler) createIssueOnGithub(owner, repo string, ghissue *g.GithubIssue) (*githubinterface.IssueData, error) {
-	issue, err := r.GithubClient.Create(owner, repo, ghissue)
-	if err != nil {
-		return nil, pkgerrors.Wrap(err, "couldn't create new issue on Github")
-	}
-	return issue, nil
-}
-
-func (r *GithubIssueReconciler) updateDescriptionOnGithub(owner, repo string, number int, ghissue *g.GithubIssue) (*githubinterface.IssueData, error) {
-	issue, err := r.GithubClient.Update(owner, repo, number, ghissue)
-	if err != nil {
-		return nil, pkgerrors.Wrap(err, "couldn't update issue on Github")
-	}
-	return issue, nil
-}
-
-func (r *GithubIssueReconciler) updateStatus(ctx context.Context, issue *githubinterface.IssueData, ghissue *g.GithubIssue) error {
-	ghissue.Status.State = issue.State
-	ghissue.Status.LastUpdateTimestamp = issue.UpdatedAt
-	err := r.Status().Update(ctx, ghissue)
-	if err != nil {
-		r.Log.Error(err, "((GithubIssueReconciler)r).Status().Update() failed ")
-		return err
+func (r *GithubIssueReconciler) AddFinalizer(ghissue *g.GithubIssue, ctx context.Context) error {
+	// Add finalizer for this CR
+	if !controllerutil.ContainsFinalizer(ghissue, finalizerName) {
+		controllerutil.AddFinalizer(ghissue, finalizerName)
+		err := r.Update(ctx, ghissue)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
-}
-
-func (r *GithubIssueReconciler) getListOfIssues(owner, repo string) ([]*githubinterface.IssueData, error) {
-	issues, err := r.GithubClient.ListIssuesByRepo(owner, repo)
-	if err != nil {
-		return nil, pkgerrors.Wrap(err, "couldn't retrieve list of issues from Github")
-	}
-	return issues, nil
 }
 
 func (r *GithubIssueReconciler) handleDeletionIfIssueFound(owner, repo string, ghissue *g.GithubIssue, issue *githubinterface.IssueData) error {
@@ -171,20 +146,19 @@ func (r *GithubIssueReconciler) handleDeletionIfIssueFound(owner, repo string, g
 	return nil
 }
 
-func (r *GithubIssueReconciler) AddFinalizer(ghissue *g.GithubIssue, ctx context.Context) error {
-	// Add finalizer for this CR
-	if !controllerutil.ContainsFinalizer(ghissue, finalizerName) {
-		controllerutil.AddFinalizer(ghissue, finalizerName)
-		err := r.Update(ctx, ghissue)
-		if err != nil {
-			return err
-		}
-	}
-
-}
-
 func stateClosed(issue *githubinterface.IssueData) bool {
 	return issue != nil && issue.State == "closed"
+}
+
+func (r *GithubIssueReconciler) updateStatus(ctx context.Context, issue *githubinterface.IssueData, ghissue *g.GithubIssue) error {
+	ghissue.Status.State = issue.State
+	ghissue.Status.LastUpdateTimestamp = issue.UpdatedAt
+	err := r.Status().Update(ctx, ghissue)
+	if err != nil {
+		r.Log.Error(err, "((GithubIssueReconciler)r).Status().Update() failed ")
+		return err
+	}
+	return nil
 }
 
 func isDescriptionEqual(issue *githubinterface.IssueData, ghissue *g.GithubIssue) bool {
